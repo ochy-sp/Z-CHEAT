@@ -10,7 +10,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 -- configuration
 local LINKVERTISE = "https://direct-link.net/1416195/54wjItUk0O6r"
-local REMOTE_SCRIPT_URL = "https://raw.githubusercontent.com/ochy-sp/z-cheat/refs/heads/rivals/main.lua"
+local REMOTE_SCRIPT_URL = "https://raw.githubusercontent.com/ochy-sp/z-cheat/refs/heads/rivals/RIVALS.lua"
 local EXPECTED_KEY = "itsthekey77" -- <<-- PLZ IF U SEE THIS WITHOUT LINKVERTISE VERIFICATION SUPPORT ME AND GO https://direct-link.net/1416195/54wjItUk0O6r 
 
 -- try several fetch methods depending on executor
