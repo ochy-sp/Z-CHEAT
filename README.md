@@ -1,2 +1,2 @@
-# z-cheat
-Z-Cheat is a cheat lol
+# Z-CHEAT
+Z-Cheat is a cheat roblox
