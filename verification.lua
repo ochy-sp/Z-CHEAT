@@ -1,64 +1,65 @@
 --[[
-UI Keybox + Link / Load remote script
-Usage: mettre dans un LocalScript (StarterGui).
-Note: pour récupérer/exécuter la raw URL il faut un executor qui permet HttpGet / loadstring.
+KeyBox GUI (English) + load remote script ONLY after valid key
+Place this in a LocalScript (StarterGui).
+Note: fetching & executing remote code requires an executor that allows HTTP and loadstring.
 --]]
 
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- configuration
 local LINKVERTISE = "https://direct-link.net/1416195/54wjItUk0O6r"
 local REMOTE_SCRIPT_URL = "https://raw.githubusercontent.com/ochy-sp/z-cheat/refs/heads/rivals/main.lua"
+local EXPECTED_KEY = "itsthekey77" -- <<-- PLZ IF U SEE THIS WITHOUT LINKVERTISE VERIFICATION SUPPORT ME AND GO https://direct-link.net/1416195/54wjItUk0O6r 
 
--- helper pour fetch le contenu d'une URL (essaie plusieurs fonctions selon l'executor)
+-- try several fetch methods depending on executor
 local function fetchUrl(url)
-    -- try syn.request
+    -- syn.request
     if syn and syn.request then
         local ok, res = pcall(function() return syn.request({ Url = url, Method = "GET" }) end)
         if ok and res and res.Body then return res.Body end
     end
 
-    -- try request (some exploits)
+    -- request
     if request then
         local ok, res = pcall(function() return request({ Url = url, Method = "GET" }) end)
         if ok and res and res.Body then return res.Body end
     end
 
-    -- try http_request
+    -- http_request
     if http_request then
         local ok, res = pcall(function() return http_request({ Url = url, Method = "GET" }) end)
         if ok and res and res.Body then return res.Body end
     end
 
-    -- try game:HttpGet (some environments support it)
+    -- game:HttpGet (some environments)
     if pcall and game.HttpGet then
         local ok, res = pcall(function() return game:HttpGet(url) end)
         if ok and res then return res end
     end
 
-    -- try game:GetObjects (rare)
-    return nil, "Aucune méthode de fetch disponible dans cet environnement."
+    return nil, "No available HTTP fetch method in this environment."
 end
 
--- helper pour exécuter du code (essaie loadstring ou load)
+-- run code string using load/loadstring
 local function runString(src)
-    if not src then return false, "Source vide" end
-    -- loadstring (ancien) puis load
-    local fn, err = loadstring and loadstring(src) or load(src)
+    if not src then return false, "Empty source" end
+    local loader = loadstring or load
+    if not loader then return false, "No load/loadstring available" end
+    local fn, err = pcall(function() return loader(src) end)
     if not fn then
-        return false, ("Erreur load: %s"):format(tostring(err))
+        return false, ("Load error: %s"):format(tostring(err))
     end
-    local ok, result = pcall(fn)
+    local func = err -- when pcall succeeded, second value is the function
+    local ok, result = pcall(func)
     if not ok then
-        return false, ("Erreur exec: %s"):format(tostring(result))
+        return false, ("Execution error: %s"):format(tostring(result))
     end
     return true, result
 end
 
--- crée l'UI
+-- GUI creation
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "KeyBoxGui"
 screenGui.ResetOnSpawn = false
@@ -73,7 +74,7 @@ frame.BorderSizePixel = 0
 frame.Parent = screenGui
 
 local title = Instance.new("TextLabel")
-title.Text = "Activation - Entrez la clé"
+title.Text = "Activation - Enter your key"
 title.Size = UDim2.new(1, -20, 0, 30)
 title.Position = UDim2.new(0, 10, 0, 8)
 title.BackgroundTransparency = 1
@@ -84,7 +85,7 @@ title.TextSize = 20
 title.Parent = frame
 
 local keyBox = Instance.new("TextBox")
-keyBox.PlaceholderText = "Colle ta clé ici..."
+keyBox.PlaceholderText = "Paste your key here..."
 keyBox.Size = UDim2.new(1, -20, 0, 40)
 keyBox.Position = UDim2.new(0, 10, 0, 44)
 keyBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
@@ -101,10 +102,10 @@ status.BackgroundTransparency = 1
 status.TextColor3 = Color3.new(1,1,1)
 status.Font = Enum.Font.SourceSansItalic
 status.TextSize = 16
-status.Text = "Statut: en attente..."
+status.Text = "Status: waiting..."
 status.Parent = frame
 
--- boutons
+-- helper to make buttons
 local function makeButton(text, posX, callback)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 120, 0, 30)
@@ -121,82 +122,59 @@ local function makeButton(text, posX, callback)
     return b
 end
 
--- bouton copier lien
-makeButton("Copier Link", 10, function()
+-- Copy Link button (keeps ability to copy your LinkVertise link)
+makeButton("Copy Link", 10, function()
     local ok, err = pcall(function()
         if setclipboard then
             setclipboard(LINKVERTISE)
         elseif toclipboard then
             toclipboard(LINKVERTISE)
         else
-            error("Fonction de clipboard non disponible")
+            error("Clipboard function not available")
         end
     end)
     if ok then
-        status.Text = "Lien copié dans le presse-papiers."
+        status.Text = "Link copied to clipboard."
     else
-        status.Text = "Impossible de copier: " .. tostring(err)
+        status.Text = "Copy failed: " .. tostring(err)
     end
 end)
 
--- bouton ouvrir link (ouvre dans navigateur si possible via exploit, sinon copie)
-makeButton("Ouvrir Link", 150, function()
-    -- certains exploits exposent une fonction pour ouvrir une URL : try openbrowser or setclipboard fallback
-    local opened = false
-    if pcall(function() if syn and syn.request then opened = false end end) then
-        -- pas de méthode universelle pour ouvrir le navigateur; on copie en backup
-    end
-    -- fallback: copier le lien
-    if setclipboard then pcall(setclipboard, LINKVERTISE) end
-    status.Text = "Lien prêt : coller dans ton navigateur (copié)."
-end)
-
--- bouton valider clé (exemple très simple : compare à une "clé attendue")
-makeButton("Valider clé", 290, function()
+-- Validate key button: ONLY way to fetch & run remote script
+makeButton("Validate Key", 150, function()
     local entered = tostring(keyBox.Text or "")
     if entered == "" then
-        status.Text = "Aucune clé entrée."
+        status.Text = "No key entered."
         return
     end
-    -- ici tu peux remplacer la logique par un check serveur (HttpRequest vers ton serveur)
-    -- exemple simple : clé attendue "MONCLE123" (change/retire pour prod)
-    local expected = "itsthekey77"
-    if entered == expected then
-        status.Text = "Clé valide. Chargement du script distant..."
-        -- fetch & run remote script
+
+    if entered == EXPECTED_KEY then
+        status.Text = "Key valid. Loading remote script..."
         local body, ferr = fetchUrl(REMOTE_SCRIPT_URL)
         if not body then
-            status.Text = "Erreur fetch: " .. tostring(ferr)
+            status.Text = "Fetch error: " .. tostring(ferr)
             return
         end
+
         local ok, err = runString(body)
         if ok then
-            status.Text = "Script distant exécuté avec succès."
+            status.Text = "Remote script executed successfully."
+            -- close GUI after successful execution
+            pcall(function() screenGui:Destroy() end)
         else
-            status.Text = "Erreur exécution: " .. tostring(err)
+            status.Text = "Execution error: " .. tostring(err)
         end
     else
-        status.Text = "Clé invalide."
+        status.Text = "Invalid key."
     end
 end)
 
--- bouton pour charger directement le remote (sans clé) — utile si tu veux tester
-makeButton("Charger direct", 10 + 120 + 20, function()
-    status.Text = "Récupération du script distant..."
-    local body, ferr = fetchUrl(REMOTE_SCRIPT_URL)
-    if not body then
-        status.Text = "Erreur fetch: " .. tostring(ferr)
-        return
-    end
-    local ok, err = runString(body)
-    if ok then
-        status.Text = "Script distant exécuté avec succès."
-    else
-        status.Text = "Erreur exec: " .. tostring(err)
-    end
+-- Optional: Quit/Close button in case user wants to close the key GUI without running
+makeButton("Close", 290, function()
+    screenGui:Destroy()
 end)
 
--- petite touche : fermer la GUI en appuyant sur ESC
+-- Close UI on ESC (nice UX)
 local UserInput = game:GetService("UserInputService")
 UserInput.InputBegan:Connect(function(input, gpe)
     if gpe then return end
